@@ -65,19 +65,27 @@ uint8_t rx_Buff_3[RX_BUFF_SIZE_MAIN1];   // receive from main2
 uint8_t tx_Buff_2[TX_BUFF_SIZE_MAIN2];   // send to main2
 uint8_t tx_Buff_3[TX_BUFF_SIZE_MAIN1];   // send to main1
 
-char rx_Buff_GPS[GPS_BUFFER];
+uint8_t rx_Buff_GPS[GPS_BUFFER];
 
 uint8_t command;
 uint8_t Buff_size;
 uint8_t count;   // adjustment of downlink rate
-uint8_t ck_a, ck_b;   // for checksum
+
+uint8_t ck_a_rx2, ck_b_rx2;   // for checksum
+uint8_t ck_a_tx2, ck_b_tx2;   // for checksum
+uint8_t ck_a_rx3, ck_b_rx3;   // for checksum
+uint8_t ck_a_tx3, ck_b_tx3;   // for checksum
+
 int flag;   // use as bool function. True:1, False:0
 
 uint16_t mission_time = 0;
 uint32_t flight_time = 0;
+uint32_t sep_time = 0;
 uint8_t latitude[2];
 uint8_t longitude[2];
 uint8_t altitude[3];
+//uint8_t test[1] = {1};
+//uint8_t receivedChar[1];
 
 /* USER CODE END PV */
 
@@ -135,19 +143,9 @@ int main(void)
   MX_TIM17_Init();
   MX_TIM15_Init();
   /* USER CODE BEGIN 2 */
-  printf("bmp280 setup");
-  bmp280_init_default_params(&bmp280.params);
-	bmp280.addr = BMP280_I2C_ADDRESS_0;
-	bmp280.i2c = &hi2c2;
+  	MAIN3_Init();
 
-	while (!bmp280_init(&bmp280, &bmp280.params))
-		{
-			printf("BME280 initialization failed\r\n");
-			HAL_Delay(2000);
-		}
 
-	  printf("main3 setup");
-  MAIN3_Init();
 
 
   /* USER CODE END 2 */
@@ -156,61 +154,88 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+//	  accelerometer = bno055_getVectorAccelerometer();
+//	  printf("x: %.2f y: %.2f z: %.2f\r\n", accelerometer.x, accelerometer.y, accelerometer.z);
+//	  HAL_Delay(1000);
 	  if (currentPhase != previousPhase) {
 
 
 		  switch (currentPhase) {
 		  	  case SAFETY:
-				  __HAL_TIM_SET_AUTORELOAD(&htim6, SAFETY_PERIOD - 1);
 				  break;
 		  	  case READY:
-				  __HAL_TIM_SET_AUTORELOAD(&htim6, READY_PERIOD - 1);
+		  		  HAL_TIM_Base_Start_IT(&htim6);//Flight pin
 				  break;
 			  case BURNING:
-				  __HAL_TIM_SET_AUTORELOAD(&htim6, BURNING_PERIOD - 1);
-				  HAL_TIM_Base_Start(&htim14);//Timer1
+				  HAL_TIM_Base_Start_IT(&htim15);//Timer1
 				  break;
 			  case FLIGHT:
-				  __HAL_TIM_SET_AUTORELOAD(&htim6, FLIGHT_PERIOD - 1);
-				  __HAL_TIM_SET_AUTORELOAD(&htim14, TOP_DETECT_PERIOD - 1);//Timer1 top detect
-				  HAL_TIM_Base_Start(&htim17);//bmp280 top detect
+				  HAL_TIM_Base_Start_IT(&htim17);//bmp280 top detect
 				  break;
 			  case SEP:
 				  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
-				  __HAL_TIM_SET_AUTORELOAD(&htim6, SEP_PERIOD - 1);
-				  __HAL_TIM_SET_AUTORELOAD(&htim17, MOSFET_PERIOD - 1);//Timer2
+				  HAL_TIM_Base_Start_IT(&htim14);//Timer2
 				  break;
 			  case LANDED:
-				  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
-				  __HAL_TIM_SET_AUTORELOAD(&htim6, LANDED_PERIOD - 1);
 				  break;
 			  case EMERGENCY:
-				  __HAL_TIM_SET_AUTORELOAD(&htim6, EMERGENCY_PERIOD - 1);
 				  break;
 		  }
-	}else{
-		switch (currentPhase) {
-			  case READY:
-				  if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_SET){
-					  currentPhase = BURNING;
-				  }
-
-				  break;
-			  case BURNING:
-				  break;
-			  case FLIGHT:
-				  break;
-			  case SEP:
-				  break;
-			  case LANDED:
-				  break;
-			  case EMERGENCY:
-				  break;
-		}
-		HAL_Delay(10);
 	}
 
-	  previousPhase = currentPhase;
+	previousPhase = currentPhase;
+	switch (currentPhase) {
+		  case SAFETY:
+			 printf("safety\r\n");
+//			 currentPhase += 1;
+			 measure();
+//			 record();
+			 send_GROUND();
+//			 HAL_UART_Transmit(&huart1, test, 1, HAL_MAX_DELAY);
+//			 HAL_UART_Transmit(&huart2, tx_Buff_2, TX_BUFF_SIZE_MAIN2, HAL_MAX_DELAY);
+
+			 HAL_Delay(SAFETY_PERIOD);
+			  break;
+		  case READY:
+			  printf("ready\r\n");
+			  measure();
+			  HAL_Delay(READY_PERIOD);
+			  break;
+		  case BURNING:
+			  printf("burning\r\n");
+			  measure();
+			  record();
+			  HAL_Delay(BURNING_PERIOD);
+			  break;
+		  case FLIGHT:
+			  printf("flight\r\n");
+			  measure();
+			  record();
+			  HAL_Delay(FLIGHT_PERIOD);
+			  break;
+		  case SEP:
+			  printf("sep\r\n");
+			  measure();
+			  record();
+			  HAL_Delay(SEP_PERIOD);
+			  break;
+		  case LANDED:
+			  printf("landed\r\n");
+			  measure();
+			  record();
+			  HAL_Delay(LANDED_PERIOD);
+			  break;
+		  case EMERGENCY:
+			  printf("emergency\r\n");
+			  measure();
+			  record();
+			  HAL_Delay(EMERGENCY_PERIOD);
+			  break;
+	}
+
+//	printf("looping");
+
+
 
     /* USER CODE END WHILE */
 
@@ -261,33 +286,38 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 void MAIN3_Init() {
+
+    HAL_UART_Receive_IT(&huart2, rx_Buff_2, RX_BUFF_SIZE_MAIN2);
+    HAL_UART_Receive_IT(&huart3, rx_Buff_3, RX_BUFF_SIZE_MAIN1);
+	HAL_UART_Receive_IT(&huart4, rx_Buff_GPS, GPS_BUFFER - 1);
 	bno055_assignI2C(&hi2c1);
 	bno055_setup();
 	bno055_setOperationModeNDOF();
 
-//	bmp280_init_default_params(&bmp280.params);
-//	bmp280.addr = BMP280_I2C_ADDRESS_0;
-//	bmp280.i2c = &hi2c2;
+	bmp280_init_default_params(&bmp280.params);
+	bmp280.addr = BMP280_I2C_ADDRESS_0;
+	bmp280.i2c = &hi2c2;
 
 //	const char setRate10Hz[] = "$PMTK220,100*2F\r\n";
 //	HAL_UART_Transmit(&huart4, (uint8_t*)setRate10Hz, strlen(setRate10Hz), HAL_MAX_DELAY);
 //	const char setGGAOnly[] = "$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n";
 //	HAL_UART_Transmit(&huart4, (uint8_t*)setGGAOnly, strlen(setGGAOnly), HAL_MAX_DELAY);
 
+	HAL_TIM_Base_Start_IT(&htim16);//Mission time
+	HAL_TIM_Base_Start_IT(&htim7);//Send ground
 
+//	HAL_UART_Receive_IT(&huart1, receivedChar, 1);
+//    HAL_UART_Receive_IT(&huart2, receivedChar, 1);
 
-    HAL_UART_Receive_IT(&huart2, rx_Buff_2, RX_BUFF_SIZE_MAIN2);
-    HAL_UART_Receive_IT(&huart3, rx_Buff_3, RX_BUFF_SIZE_MAIN1);
-	HAL_UART_Receive_IT(&huart4, rx_Buff_GPS, GPS_BUFFER - 1);
-
-//	while (!bmp280_init(&bmp280, &bmp280.params))
-//	{
+	while (!bmp280_init(&bmp280, &bmp280.params))
+	{
 //		printf("BME280 initialization failed\r\n");
-//		HAL_Delay(2000);
-//	}
+		HAL_Delay(2000);
+	}
 }
 
 void measure(){
+//	printf("measure\r\n");
 	accelerometer = bno055_getVectorAccelerometer();
 	gyroscope = bno055_getVectorGyroscope();
 	if(!bmp280_read_float(&bmp280, &temperature, &pressure, &humidity)){
@@ -298,228 +328,310 @@ void measure(){
 }
 
 void record(){
-	for (size_t i = 0; i < 39; i++) {
-	        printf("%u ", tx_Buff_2[i]);
-	    }
-	    printf("\r\n");
+//	printf("record\r\n");
+//	printf("mission time : %d\r\n",mission_time);
+//	printf("flight time : %d\r\n",flight_time);
+//	printf("x: %d y: %d z: %d\r\n", accelerometer.x *100, accelerometer.y * 100, accelerometer.z * 100);
+//	printf("x: %d y: %d z: %d\r\n", gyroscope.x * 100, gyroscope.y * 100, gyroscope.z * 100);
+//	printf("temperature: %d pressure: %d humidity: %d\r\n", temperature * 100, pressure * 100, humidity * 100);
+//	printf("33.%2d%2d\r\n", latitude[0], latitude[1]);
+//	printf("130.%2d%2d\r\n", longitude[0], longitude[1]);
+//	printf("%2d%2d.%2d\r\n", altitude[0], altitude[1],altitude[2]);
+
 }
 
-void top_detect(){
-	int count = 0;
-	if(previous_pressure < pressure){
-		count ++;
-		if(count >= 5){
-			currentPhase = SEP;
-		}
-	}else{
-		count = 0;
-	}
-	previous_pressure = pressure;
-}
+//void top_detect(){
+//	int count = 0;
+//	if(previous_pressure < pressure){
+//		count ++;
+//		if(count >= 5){
+//		    HAL_TIM_Base_Stop_IT(&htim17);
+//			currentPhase = SEP;
+//		}
+//	}else{
+//		count = 0;
+//	}
+//	previous_pressure = pressure;
+//}
 
-void processGPSData(char *buffer){
-	char *ggaMessage = strstr(buffer, "$GPGGA");
-	char* rest = ggaMessage;
-	char token[20];
+void processGPSData(uint8_t *buffer){
+    char *ggaMessage = strstr((char *)buffer, "$GPGGA");
+    if (ggaMessage == NULL) {
+        return;
+    }
 
-	strtok_r(rest, ",", &rest);  // $GPGGA
-	strtok_r(rest, ",", &rest);  // time
+    char* rest = ggaMessage + 7;  // Skip "$GPGGA,"
+    char token[20];
+    int idx = 0;
 
-	char* latToken = strtok_r(rest, ",", &rest);  // lat
-	if (latToken != NULL) {
-		strncpy(token, latToken, sizeof(token) - 1);
-		token[-1] = '\0';
-		uint8_t latitude_int;
-		sscanf(token, "%2d", &latitude_int);
-		if(latitude_int == 0){
-			latitude[0] = 0x55;
-			latitude[1] = 0x55;
-		}else{
-			sscanf(token + 2, "%2d", &latitude[0]);
-			sscanf(token + 5, "%2d", &latitude[1]);
-		}
-	}else{
-		latitude[0] = 0x55;
-		latitude[1] = 0x55;
-	}
+    // Skip time
+    while (*rest != ',' && *rest != '\0') rest++;
+    if (*rest == ',') rest++;
 
-	strtok_r(rest, ",", &rest);  // N/S indicator
+    // Get latitude
+    idx = 0;
+    while (*rest != ',' && *rest != '\0' && idx < sizeof(token) - 1) {
+        token[idx++] = *rest++;
+    }
+    token[idx] = '\0';
+    if (*rest == ',') rest++;
 
-	char* lonToken = strtok_r(rest, ",", &rest);  // lon
-	if (lonToken != NULL) {
-		strncpy(token, lonToken, sizeof(token) - 1);
-		token[-1] = '\0';
-		uint8_t longitude_int;
-		sscanf(token, "%3d", &longitude_int);
-		if(longitude_int == 0){
-			longitude[0] = 0x55;
-			longitude[1] = 0x55;
-		}else{
-		sscanf(token + 3, "%2d", &longitude[0]);
-		sscanf(token + 6, "%2d", &longitude[1]);
-		}
-	}else{
-		longitude[0] = 0x55;
-		longitude[1] = 0x55;
-	}
+    if (idx > 0) {
+        uint8_t latitude_int = (token[0] - '0') * 10 + (token[1] - '0');
+        if (latitude_int == 0) {
+            latitude[0] = 0x55;
+            latitude[1] = 0x55;
+        } else {
+            latitude[0] = (token[2] - '0') * 10 + (token[3] - '0');
+            latitude[1] = (token[5] - '0') * 10 + (token[6] - '0');
+        }
+    } else {
+        latitude[0] = 0x55;
+        latitude[1] = 0x55;
+    }
 
-	strtok_r(rest, ",", &rest);  // E/W indicator
-	strtok_r(rest, ",", &rest);  // fix quality
-	strtok_r(rest, ",", &rest);  // number of satellites
-	char* altToken = strtok_r(rest, ",", &rest);  // horizontal dilution of precision
-	if (altToken != NULL) {
-		double altitude_double = atof(altToken);
-		uint16_t altitude_int = (int)altitude_double;
-		uint8_t altitude_decimal = (int)((altitude_double - altitude_int) * 100);
-		altitude[0] = (altitude_int >> 8) & 0xFF;
-		altitude[1] = altitude_int & 0xFF;
-		altitude[2] = altitude_decimal & 0xFF;
-	}else{
-		memset(altitude, 0, 3);
-	}
+    // Skip N/S indicator
+    while (*rest != ',' && *rest != '\0') rest++;
+    if (*rest == ',') rest++;
+
+    // Get longitude
+    idx = 0;
+    while (*rest != ',' && *rest != '\0' && idx < sizeof(token) - 1) {
+        token[idx++] = *rest++;
+    }
+    token[idx] = '\0';
+    if (*rest == ',') rest++;
+
+    if (idx > 0) {
+        uint8_t longitude_int = (token[0] - '0') * 100 + (token[1] - '0') * 10 + (token[2] - '0');
+        if (longitude_int == 0) {
+            longitude[0] = 0x55;
+            longitude[1] = 0x55;
+        } else {
+            longitude[0] = (token[3] - '0') * 10 + (token[4] - '0');
+            longitude[1] = (token[6] - '0') * 10 + (token[7] - '0');
+        }
+    } else {
+        longitude[0] = 0x55;
+        longitude[1] = 0x55;
+    }
+
+    // Skip E/W indicator
+    while (*rest != ',' && *rest != '\0') rest++;
+    if (*rest == ',') rest++;
+
+    while (*rest != ',' && *rest != '\0') rest++;
+	if (*rest == ',') rest++;
+
+    // Skip number of satellites
+    while (*rest != ',' && *rest != '\0') rest++;
+    if (*rest == ',') rest++;
+
+    while (*rest != ',' && *rest != '\0') rest++;
+    if (*rest == ',') rest++;
+
+    // Get altitude
+    idx = 0;
+    while (*rest != ',' && *rest != '\0' && idx < sizeof(token) - 1) {
+        token[idx++] = *rest++;
+    }
+    token[idx] = '\0';
+
+    if (idx > 0) {
+        double altitude_double = atof(token);
+        uint16_t altitude_int = (int)altitude_double;
+        uint8_t altitude_decimal = (int)((altitude_double - altitude_int) * 100);
+        altitude[0] = (altitude_int >> 8) & 0xFF;
+        altitude[1] = altitude_int & 0xFF;
+        altitude[2] = altitude_decimal & 0xFF;
+    } else {
+        altitude[0] = 0x00;
+        altitude[1] = 0x00;
+        altitude[2] = 0x00;
+    }
 }
 
 //Timer callback
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-    if (htim->Instance == TIM6) {
-        if(currentPhase==SAFETY || currentPhase==READY){
-        	measure();
-        }
-        else{
-        	measure();
-			record();
-        }
+    if (htim->Instance == TIM6) {//Flight pin
+	  if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_SET){
+		  HAL_TIM_Base_Stop_IT(&htim6);
+		  currentPhase = BURNING;
+	  }
     }else if (htim->Instance == TIM7) {
     	send_GROUND();
 	}else if (htim->Instance == TIM14) {
-    	if(currentPhase == BURNING){
-    		currentPhase = FLIGHT;
-    	}else if(currentPhase == FLIGHT){
-    		currentPhase = SEP;
-    	}
+		sep_time += 1;
+		if(currentPhase == SEP){
+			if(sep_time == SEP_TIME){
+			HAL_TIM_Base_Stop_IT(&htim14);
+		    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
+			currentPhase = LANDED;
+			}
+		}
 	}else if (htim->Instance == TIM15) {
-		flight_time ++;
+		flight_time += 1;
+		if(currentPhase == BURNING){
+			if(flight_time==BURNING_TIME){
+				currentPhase = FLIGHT;
+			}
+		}else if(currentPhase == FLIGHT){
+			if(flight_time==TOP_DETECT_TIME){
+				currentPhase = SEP;
+			}
+		}
     }else if (htim->Instance == TIM16) {
-		mission_time ++;
+		mission_time += 1;
+//		switch (currentPhase) {
+//				  	  case SAFETY:
+//				  		if(mission_time == 15){
+//				  			currentPhase = READY;
+//				  		}
+//						  break;
+//				  	  case READY:
+//				  		if(mission_time == 30){
+//							currentPhase = BURNING;
+//						}
+//						  break;
+//					  case BURNING:
+//						  if(mission_time == 45){
+//							currentPhase = FLIGHT;
+//						}
+//						  break;
+//					  case FLIGHT:
+//						  if(mission_time == 60){
+//								currentPhase = SEP;
+//							}
+//						  break;
+//					  case SEP:
+//						  if(mission_time == 75){
+//							currentPhase = LANDED;
+//						}
+//					  case LANDED:
+//						  if(mission_time == 90){
+//							currentPhase = EMERGENCY;
+//						}
+//						  break;
+//					  case EMERGENCY:
+//
+//						  break;
+//	    }
 	}else if (htim->Instance == TIM17) {
     	if(currentPhase == FLIGHT){
-    		top_detect();
-    	}else if(currentPhase == SEP){
-    		currentPhase = LANDED;
+//    		top_detect();
     	}
 	}
 }
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
- 	if (huart->Instance == USART2) {
-		printf("Receive from MAIN2\r\n");
-		checkUART(rx_Buff_2);
+	if (huart->Instance == USART2) { // use ck_rx2
+		printf("receive");
+//			checkUART(rx_Buff_2, &ck_a_rx2, &ck_b_rx2);
+		flag = 1;
 
-		if (flag == 1){
-            command = rx_Buff_2[5];
+			if (flag == 1){
+	            command = rx_Buff_2[4];
 
-            if (rx_Buff_2[3] == MAIN3){
+	            if (rx_Buff_2[3] == MAIN3){
 
-                switch(command){
-                    case 0:
-                        switch(currentPhase){
-                            case READY:
-                                currentPhase = SAFETY;
-                                break;
+	                switch(command){
+	                    case 0:
+	                        switch(currentPhase){
+	                            case READY:
+	                                currentPhase = SAFETY;
+	                                break;
 
-                            case BURNING:
-                                currentPhase = READY;
-                                break;
+	                            case BURNING:
+	                                currentPhase = READY;
+	                                break;
 
-                            case LANDED:
-                                currentPhase = SEP;
-                                break;
-                        }
-                        break;
+	                            case LANDED:
+	                                currentPhase = SEP;
+	                                break;
+	                        }
+	                        break;
 
-                    case 1:
-                        switch(currentPhase){
-                            case SAFETY:
-                                currentPhase = READY;
-                                break;
+	                    case 1:
+	                        switch(currentPhase){
+	                            case SAFETY:
+	                                currentPhase = READY;
+	                                break;
 
-                            case FLIGHT:
-                                currentPhase = SEP;
-                                break;
+	                            case FLIGHT:
+	                                currentPhase = SEP;
+	                                break;
 
-                            case LANDED:
-                                currentPhase = EMERGENCY;
-                                break;
-                        }
+	                            case LANDED:
+	                                currentPhase = EMERGENCY;
+	                                break;
+	                        }
 
-                        break;
+	                        break;
 
-                    case 6:
-                        if (currentPhase != SAFETY){
-                            currentPhase = EMERGENCY;
-                        }
-                        break;
-                }
+	                    case 6:
+	                        if (currentPhase != SAFETY){
+	                            currentPhase = EMERGENCY;
+	                        }
+	                        break;
+	                }
 
-            }else if (rx_Buff_2[3] == VALVE){
-                send_VALVE(tx_Buff_3, command);
+	            }else if (rx_Buff_2[3] == VALVE){
+//	                send_VALVE(tx_Buff_3, command);
 
-            }else if (rx_Buff_2[3] == MAIN1){
-                sendfrom = MAIN2;
+	            }else if (rx_Buff_2[3] == MAIN1){
+	                sendfrom = MAIN2;
 
-                send_MAIN1(tx_Buff_3, sendfrom, command);
+//	                send_MAIN1(tx_Buff_3, sendfrom, command);
 
-            }
+	            }
 
 
+			}
+
+			flag = 0;
+			MX_USART2_UART_Init();
+			memset(rx_Buff_2, 0, RX_BUFF_SIZE_MAIN2);
+			HAL_UART_Receive_IT(&huart2, rx_Buff_2, RX_BUFF_SIZE_MAIN2);
 		}
 
-		flag = 0;
-		MX_USART2_UART_Init();
-		memset(rx_Buff_2, 0, RX_BUFF_SIZE_MAIN2);
-		HAL_UART_Receive_IT(&huart2, rx_Buff_2, RX_BUFF_SIZE_MAIN2);
-	}
+	    if (huart->Instance == USART3) {  // use ck_rx3
+			checkUART(rx_Buff_3, &ck_a_rx3, &ck_b_rx3);
 
-    if (huart->Instance == USART3) {
-        printf("Receive from MAIN1\r\n");
-		checkUART(rx_Buff_3);
+	        if (flag == 1){
+	            if (rx_Buff_3[3] == MAIN1){
+	                sendfrom = MAIN3;
+	                command = rx_Buff_3[5];
 
-        if (flag == 1){
-            if (rx_Buff_3[3] == MAIN1){
-                sendfrom = MAIN3;
-                command = rx_Buff_3[5];
+//	                send_MAIN1(tx_Buff_3, sendfrom, command);
 
-                send_MAIN1(tx_Buff_3, sendfrom, command);
+	            }else if (rx_Buff_2[3] == MAIN2){
+	                sendfrom = MAIN1;
+	                command = rx_Buff_3[5];
 
-            }else if (rx_Buff_2[3] == MAIN2){
-                sendfrom = MAIN1;
-                command = rx_Buff_3[5];
+	                send_MAIN2(tx_Buff_2, sendfrom, command);
 
-                send_MAIN2(tx_Buff_2, sendfrom, command);
+	            }else if (rx_Buff_2[3] == VALVE){
+//	                printf("not yet");
+	            }
+	        }
 
-            }else if (rx_Buff_2[3] == VALVE){
-                printf("not yet");
-            }
-        }
+	        flag = 0;
 
-        flag = 0;
-		MX_USART3_UART_Init();
-		memset(rx_Buff_3, 0, RX_BUFF_SIZE_MAIN1);
-        HAL_UART_Receive_IT(&huart3, rx_Buff_3, RX_BUFF_SIZE_MAIN1);
+	    }
 
-    }
 
-    if (huart->Instance == USART4) {
+
+	if (huart->Instance == USART4) {
 	    rx_Buff_GPS[GPS_BUFFER - 1] = '\0';
+//	    printf(rx_Buff_GPS);
 	    processGPSData(rx_Buff_GPS);
 	    MX_USART4_UART_Init();
-	    memset(rx_Buff_GPS, 0, GPS_BUFFER);
        	HAL_UART_Receive_IT(&huart4, rx_Buff_GPS, GPS_BUFFER - 1);
 
        }
 }
 
 
-void send_MAIN2(uint8_t *tx_Buff, SEND_TO want_from, uint8_t com){
+void send_MAIN2(uint8_t *tx_Buff, SEND_TO want_from, uint8_t com){ // use ck_tx2
 	sendto = MAIN2;
 
 	tx_Buff[0] = (ADDRESS >> 8) & 0xFF;
@@ -528,23 +640,51 @@ void send_MAIN2(uint8_t *tx_Buff, SEND_TO want_from, uint8_t com){
 	tx_Buff[3] = want_from;
 	tx_Buff[4] = TX_BUFF_SIZE_MAIN2;
 
-	if (want_from == GROUND){
-
-    }else if (want_from == MAIN1){
+    if (want_from == MAIN1){
         tx_Buff[5] = com;
 
     }
 
 
-	calculateChecksum(tx_Buff, TX_BUFF_SIZE_MAIN2, &ck_a, &ck_b);
-	tx_Buff[-2] = ck_a;
-	tx_Buff[-1] = ck_b;
+	calculateChecksum(tx_Buff, TX_BUFF_SIZE_MAIN2, &ck_a_tx2, &ck_b_rx2);
+	tx_Buff[-2] = ck_a_rx2;
+	tx_Buff[-1] = ck_b_rx2;
 
 }
 
 void send_GROUND(){
 	int temp_decimal_first_digit = (int)(temperature * 10) % 10;
 	uint8_t flight_pin_status = (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_SET) ? 1 : 0;
+
+	uint8_t accx_int = (int)accelerometer.x;
+	uint8_t accx_decimal = (int)((accelerometer.x - accx_int) * 100);
+	tx_Buff_2[23] = accx_int & 0xFF;
+	tx_Buff_2[24] = accx_decimal & 0xFF;
+
+	uint8_t accy_int = (int)accelerometer.y;
+	uint8_t accy_decimal = (int)((accelerometer.y - accy_int) * 100);
+	tx_Buff_2[25] = accy_int & 0xFF;
+	tx_Buff_2[26] = accy_decimal & 0xFF;
+
+	uint8_t accz_int = (int)accelerometer.z;
+	uint8_t accz_decimal = (int)((accelerometer.z - accz_int) * 100);
+	tx_Buff_2[27] = accz_int & 0xFF;
+	tx_Buff_2[28] = accz_decimal & 0xFF;
+
+	uint8_t gyrx_int = (int)gyroscope.x;
+	uint8_t gyrx_decimal = (int)((gyroscope.x - gyrx_int) * 100);
+	tx_Buff_2[29] = gyrx_int & 0xFF;
+	tx_Buff_2[30] = gyrx_decimal & 0xFF;
+
+	uint8_t gyry_int = (int)gyroscope.y;
+	uint8_t gyry_decimal = (int)((gyroscope.y - gyry_int) * 100);
+	tx_Buff_2[31] = gyry_int & 0xFF;
+	tx_Buff_2[32] = gyry_decimal & 0xFF;
+
+	uint8_t gyrz_int = (int)gyroscope.z;
+	uint8_t gyrz_decimal = (int)((gyroscope.z - gyrz_int) * 100);
+	tx_Buff_2[33] = gyrz_int & 0xFF;
+	tx_Buff_2[34] = gyrz_decimal & 0xFF;
 
 
 	tx_Buff_2[0] = (ADDRESS >> 8) & 0xFF;
@@ -572,66 +712,54 @@ void send_GROUND(){
 	tx_Buff_2[21] |= (rx_Buff_3[5] & 0x03) << 2;
 	tx_Buff_2[21] |= (flight_pin_status & 0x01) << 1;
 	tx_Buff_2[22] =0;
-	tx_Buff_2[23] =(int)accelerometer.x;
-	tx_Buff_2[24] =accelerometer.x - (int)accelerometer.x;
-	tx_Buff_2[25] =(int)accelerometer.y;
-	tx_Buff_2[26] =accelerometer.y - (int)accelerometer.y;
-	tx_Buff_2[27] =(int)accelerometer.z;
-	tx_Buff_2[28] =accelerometer.z - (int)accelerometer.z;
-	tx_Buff_2[29] =(int)gyroscope.x;
-	tx_Buff_2[30] =gyroscope.x - (int)gyroscope.x;
-	tx_Buff_2[31] =(int)gyroscope.y;
-	tx_Buff_2[32] =gyroscope.y - (int)gyroscope.y;
-	tx_Buff_2[33] =(int)gyroscope.z;
-	tx_Buff_2[34] =gyroscope.z - (int)gyroscope.z;
 	tx_Buff_2[35] =0;
 	tx_Buff_2[36] =0;
 
-	calculateChecksum(tx_Buff_2, TX_BUFF_SIZE_MAIN2, &ck_a, &ck_b);
-	tx_Buff_2[-2] = ck_a;
-	tx_Buff_2[-1] = ck_b;
+	calculateChecksum(tx_Buff_2, TX_BUFF_SIZE_MAIN2, &ck_a_tx2, &ck_b_tx2);
+	tx_Buff_2[TX_BUFF_SIZE_MAIN2-2] = ck_a_tx2;
+	tx_Buff_2[TX_BUFF_SIZE_MAIN2-1] = ck_b_tx2;
 
 	HAL_UART_Transmit(&huart2, tx_Buff_2, TX_BUFF_SIZE_MAIN2, HAL_MAX_DELAY);
 
 }
 
 
-void send_VALVE(uint8_t *tx_Buff, uint8_t com){
-	sendto = MAIN1;
-	wantto = VALVE;
-
-	tx_Buff[0] = (ADDRESS >> 8) & 0xFF;
-	tx_Buff[1] = ADDRESS & 0xFF;
-	tx_Buff[2] = sendto;
-	tx_Buff[3] = wantto;
-	tx_Buff[4] = TX_BUFF_SIZE_MAIN1;
-    tx_Buff[5] = com;
-
-	calculateChecksum(tx_Buff, TX_BUFF_SIZE_MAIN1, &ck_a, &ck_b);
-	tx_Buff[-2] = ck_a;
-	tx_Buff[-1] = ck_b;
-
-}
-
-
-void send_MAIN1(uint8_t *tx_Buff, SEND_TO from, uint8_t com){
-	sendto = MAIN1;
-
-	tx_Buff[0] = (ADDRESS >> 8) & 0xFF;
-	tx_Buff[1] = ADDRESS & 0xFF;
-	tx_Buff[2] = sendto;
-	tx_Buff[3] = from;
-	tx_Buff[4] = TX_BUFF_SIZE_MAIN1;
-    tx_Buff[5] = com;
-
-	calculateChecksum(tx_Buff, TX_BUFF_SIZE_MAIN1, &ck_a, &ck_b);
-	tx_Buff[-2] = ck_a;
-	tx_Buff[-1] = ck_b;
-
-}
+//void send_VALVE(uint8_t *tx_Buff, uint8_t com){ // use ck_tx3
+//	sendto = MAIN1;
+//	wantto = VALVE;
+//
+//	tx_Buff[0] = (ADDRESS >> 8) & 0xFF;
+//	tx_Buff[1] = ADDRESS & 0xFF;
+//	tx_Buff[2] = sendto;
+//	tx_Buff[3] = wantto;
+//	tx_Buff[4] = TX_BUFF_SIZE_MAIN1;
+//    tx_Buff[5] = com;
+//
+//	calculateChecksum(tx_Buff, TX_BUFF_SIZE_MAIN1, &ck_a_tx3, &ck_b_tx3);
+//	tx_Buff[-2] = ck_a_tx3;
+//	tx_Buff[-1] = ck_b_tx3;
+//
+//}
 
 
-void calculateChecksum(uint8_t *Buff, uint8_t Buff_size, uint8_t *ck_a, uint8_t *ck_b) {
+//void send_MAIN1(uint8_t *tx_Buff, SEND_TO from, uint8_t com){  // use ck_tx3
+//	sendto = MAIN1;
+//
+//	tx_Buff[0] = (ADDRESS >> 8) & 0xFF;
+//	tx_Buff[1] = ADDRESS & 0xFF;
+//	tx_Buff[2] = sendto;
+//	tx_Buff[3] = from;
+//	tx_Buff[4] = TX_BUFF_SIZE_MAIN1;
+//    tx_Buff[5] = com;
+//
+//	calculateChecksum(tx_Buff, TX_BUFF_SIZE_MAIN1, &ck_a_tx3, &ck_b_tx3);
+//	tx_Buff[-2] = ck_a_tx3;
+//	tx_Buff[-1] = ck_b_tx3;
+//
+//}
+
+
+void calculateChecksum(uint8_t *Buff, uint8_t Buff_size, uint8_t *ck_a, uint8_t *ck_b){
 	*ck_a = 0;
     *ck_b = 0;
 
@@ -639,15 +767,17 @@ void calculateChecksum(uint8_t *Buff, uint8_t Buff_size, uint8_t *ck_a, uint8_t 
         *ck_a = (*ck_a + Buff[i]) & 0xFF;
         *ck_b = (*ck_b + *ck_a) & 0xFF;
     }
+//	printf("ck_a : %d\r\n", *ck_a);
+//	printf("ck_b : %d\r\n", *ck_b);
 }
 
 
-void checkUART(uint8_t *rx_Buff){
+void checkUART(uint8_t *rx_Buff, uint8_t *ck_a, uint8_t *ck_b){
 	if (((rx_Buff[0] << 8) | (rx_Buff[1])) == ADDRESS || rx_Buff[2] == 2){
-		Buff_size = rx_Buff[4];
-		calculateChecksum(rx_Buff, Buff_size, &ck_a, &ck_b);
+        Buff_size = rx_Buff[4];
+		calculateChecksum(rx_Buff, Buff_size, ck_a, ck_b);
 
-		if (ck_a == rx_Buff[-2] || ck_b == rx_Buff[-1]){
+		if (*ck_a == rx_Buff[-2] || *ck_b == rx_Buff[-1]){
 			flag = 1;
 		}else{
 			flag = 0;
