@@ -76,11 +76,9 @@ void MAIN3_Init();
 void measure();
 void record();
 void send();
+void send_GROUND();
 void top_detect();
-void processGPSData();
-uint32_t getTime0();
-uint32_t getTime1();
-uint32_t getTime2();
+void processGPSData(uint8_t *buffer);
 void checkConditionsAndUpdatePhase();
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim);
 
@@ -88,7 +86,7 @@ void send_MAIN1(uint8_t *tx_Buff, SEND_TO from, uint8_t com);
 void send_VALVE(uint8_t *tx_Buff, uint8_t com);
 void send_MAIN2(uint8_t *tx_Buff, SEND_TO want_from, uint8_t com);
 void calculateChecksum(uint8_t *Buff, uint8_t Buff_size, uint8_t *ck_a, uint8_t *ck_b);  // for checksum
-void checkUART(uint8_t *rx_Buff);   // if True, it adjusts Buff_size, PHASE
+void checkUART(uint8_t *rx_Buff, uint8_t *ck_a, uint8_t *ck_b);   // if True, it adjusts Buff_size, PHASE
 
 
 /* USER CODE END EFP */
@@ -103,8 +101,10 @@ void checkUART(uint8_t *rx_Buff);   // if True, it adjusts Buff_size, PHASE
 #define SEP_PERIOD        10   // 100Hz
 #define LANDED_PERIOD     10   // 100Hz
 #define EMERGENCY_PERIOD  10   // 100Hz
-#define MOSFET_PERIOD  7000   // 7s
-#define TOP_DETECT_PERIOD  13000   // 13s
+#define MOSFET_PERIOD  3000   // 3s
+#define BURNING_TIME  700   // 7s
+#define TOP_DETECT_TIME  2000   // 20s
+#define SEP_TIME 3 //3s
 
 
 #define ADDRESS 2024   // inspire from this year
