@@ -70,6 +70,7 @@ uint8_t rx_Buff_GPS[GPS_BUFFER];
 uint8_t command;
 uint8_t Buff_size;
 uint8_t count;   // adjustment of downlink rate
+uint8_t count_pres = 0;
 
 uint8_t ck_a_rx2, ck_b_rx2;   // for checksum
 uint8_t ck_a_tx2, ck_b_tx2;   // for checksum
@@ -84,6 +85,8 @@ uint32_t sep_time = 0;
 uint8_t latitude[2];
 uint8_t longitude[2];
 uint8_t altitude[3];
+
+uint8_t judg = 0;
 //uint8_t test[1] = {1};
 //uint8_t receivedChar[1];
 
@@ -139,11 +142,11 @@ int main(void)
   MX_TIM6_Init();
   MX_TIM7_Init();
   MX_TIM14_Init();
+  MX_TIM15_Init();
   MX_TIM16_Init();
   MX_TIM17_Init();
-  MX_TIM15_Init();
   /* USER CODE BEGIN 2 */
-  	MAIN3_Init();
+  MAIN3_Init();
 
 
 
@@ -154,13 +157,14 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  printf("looping\r\n");
 //	  accelerometer = bno055_getVectorAccelerometer();
 //	  printf("x: %.2f y: %.2f z: %.2f\r\n", accelerometer.x, accelerometer.y, accelerometer.z);
 //	  HAL_Delay(1000);
 	  if (currentPhase != previousPhase) {
 
 
-		  switch (currentPhase) {
+		  switch (currentPhase){
 		  	  case SAFETY:
 				  break;
 		  	  case READY:
@@ -208,7 +212,7 @@ int main(void)
 			  HAL_Delay(BURNING_PERIOD);
 			  break;
 		  case FLIGHT:
-			  printf("flight\r\n");
+			  //printf("flight\r\n");
 			  measure();
 			  record();
 			  HAL_Delay(FLIGHT_PERIOD);
@@ -317,7 +321,6 @@ void MAIN3_Init() {
 }
 
 void measure(){
-//	printf("measure\r\n");
 	accelerometer = bno055_getVectorAccelerometer();
 	gyroscope = bno055_getVectorGyroscope();
 	if(!bmp280_read_float(&bmp280, &temperature, &pressure, &humidity)){
@@ -340,19 +343,21 @@ void record(){
 
 }
 
-//void top_detect(){
-//	int count = 0;
-//	if(previous_pressure < pressure){
-//		count ++;
-//		if(count >= 5){
-//		    HAL_TIM_Base_Stop_IT(&htim17);
-//			currentPhase = SEP;
-//		}
-//	}else{
-//		count = 0;
-//	}
-//	previous_pressure = pressure;
-//}
+void top_detect(){
+	if(previous_pressure <= pressure){
+		count_pres += 1;
+		printf("count : %d\r\n", count_pres);
+		if(count_pres >= 10){
+		    HAL_TIM_Base_Stop_IT(&htim17);
+			currentPhase = SEP;
+			judg = 2;
+			count_pres = 0;
+		}
+	}else{
+		count_pres = 0;
+	}
+	previous_pressure = pressure;
+}
 
 void processGPSData(uint8_t *buffer){
     char *ggaMessage = strstr((char *)buffer, "$GPGGA");
@@ -463,7 +468,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	}else if (htim->Instance == TIM14) {
 		sep_time += 1;
 		if(currentPhase == SEP){
-			if(sep_time == SEP_TIME){
+			if(sep_time >= SEP_TIME){
 			HAL_TIM_Base_Stop_IT(&htim14);
 		    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);
 			currentPhase = LANDED;
@@ -472,12 +477,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	}else if (htim->Instance == TIM15) {
 		flight_time += 1;
 		if(currentPhase == BURNING){
-			if(flight_time==BURNING_TIME){
+			if(flight_time >= BURNING_TIME){
 				currentPhase = FLIGHT;
 			}
 		}else if(currentPhase == FLIGHT){
-			if(flight_time==TOP_DETECT_TIME){
+			if(flight_time >= TOP_DETECT_TIME){
 				currentPhase = SEP;
+				judg = 1;
 			}
 		}
     }else if (htim->Instance == TIM16) {
@@ -518,7 +524,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 //	    }
 	}else if (htim->Instance == TIM17) {
     	if(currentPhase == FLIGHT){
-//    		top_detect();
+    		top_detect();
     	}
 	}
 }
@@ -558,10 +564,17 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 
 	                            case FLIGHT:
 	                                currentPhase = SEP;
+	                                judg = 3;
 	                                break;
 
 	                            case LANDED:
 	                                currentPhase = EMERGENCY;
+	                                break;
+
+	                            case EMERGENCY:
+	                                currentPhase = SAFETY;
+	                                HAL_TIM_Base_Stop_IT(&htim15);
+	                                flight_time = 0;
 	                                break;
 	                        }
 
@@ -654,7 +667,7 @@ void send_MAIN2(uint8_t *tx_Buff, SEND_TO want_from, uint8_t com){ // use ck_tx2
 
 void send_GROUND(){
 	int temp_decimal_first_digit = (int)(temperature * 10) % 10;
-	uint8_t flight_pin_status = (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_SET) ? 1 : 0;
+	uint8_t flight_pin_status = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15);
 
 	uint8_t accx_int = (int)accelerometer.x;
 	uint8_t accx_decimal = (int)((accelerometer.x - accx_int) * 100);
@@ -708,16 +721,14 @@ void send_GROUND(){
 	tx_Buff_2[18] = ((int)pressure >> 8) & 0xFF;
 	tx_Buff_2[19] = (int)pressure & 0xFF;
 	tx_Buff_2[20] =(int)temperature;
-	tx_Buff_2[21] |= (temp_decimal_first_digit & 0x0F) << 4;
-	tx_Buff_2[21] |= (rx_Buff_3[5] & 0x03) << 2;
-	tx_Buff_2[21] |= (flight_pin_status & 0x01) << 1;
+	tx_Buff_2[21] = ((temp_decimal_first_digit & 0x0F) << 4) | (judg << 2) | (flight_pin_status << 1);
 	tx_Buff_2[22] =0;
-	tx_Buff_2[35] =0;
-	tx_Buff_2[36] =0;
+	tx_Buff_2[35] = count_pres;
+	tx_Buff_2[36] = count_pres * 10;
 
 	calculateChecksum(tx_Buff_2, TX_BUFF_SIZE_MAIN2, &ck_a_tx2, &ck_b_tx2);
-	tx_Buff_2[TX_BUFF_SIZE_MAIN2-2] = ck_a_tx2;
-	tx_Buff_2[TX_BUFF_SIZE_MAIN2-1] = ck_b_tx2;
+	tx_Buff_2[TX_BUFF_SIZE_MAIN2 - 2] = ck_a_tx2;
+	tx_Buff_2[TX_BUFF_SIZE_MAIN2 - 1] = ck_b_tx2;
 
 	HAL_UART_Transmit(&huart2, tx_Buff_2, TX_BUFF_SIZE_MAIN2, HAL_MAX_DELAY);
 
