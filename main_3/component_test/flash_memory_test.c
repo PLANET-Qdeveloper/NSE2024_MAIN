@@ -55,20 +55,14 @@ static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
-//void MX25L8006E_ReadData(uint32_t address, uint8_t *buffer, uint16_t length);
-//void MX25L8006E_WriteEnable();
-//void MX25L8006E_PageProgram(uint32_t address, uint8_t *data, uint16_t length);
-//void MX25L8006E_WaitForWriteComplete();
 void printHex(uint8_t *data, uint16_t length) ;
 void MX25L8006E_SectorErase(uint32_t address);
-void MX25L8006E_ReadID(uint8_t *id);
-//uint8_t ReciveDataSpiControl(void);
-uint8_t MX25L8006E_ReadStatus();
 void MX25L8006E_WriteEnable(void);
 void MX25L8006E_WaitForWriteComplete(void);
 void MX25L8006E_PageProgram(uint32_t address, uint8_t *data, uint16_t length);
 void MX25L8006E_WriteData(uint32_t start_address, uint8_t *data, uint32_t total_length);
 void MX25L8006E_ReadData(uint32_t start_address, uint8_t *buffer, uint32_t length);
+void readAndPrintData(uint32_t start_address, uint32_t num_blocks);
 void MX25L8006E_EraseAll(void);
 /* USER CODE END PFP */
 
@@ -126,61 +120,20 @@ int main(void)
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET); // CS=Hにしておく
 
     __HAL_SPI_ENABLE(&hspi1);
-//  uint8_t id[3];
-//  for(int i = 0; i < 3; i++) {
-//	  id[i] = i;
-//    }
-//    MX25L8006E_ReadID(id);
-//    printf("Device ID: 0x%02X 0x%02X 0x%02X\n", id[0], id[1], id[2]);
-//    MX25L8006E_ReadID(id);
-//    printf("Device ID: 0x%02X 0x%02X 0x%02X\n", id[0], id[1], id[2]);
-  uint8_t writeData[256] = { 'H', 'e', 'l', 'l', 'o', 0x00 };  // 書き込み??????��?��??��?��???��?��??��?��????��?��??��?��???��?��??��?��?????��?��??��?��???��?��??��?��????��?��??��?��???��?��??��?��?ータ
-  uint8_t readData[256] = {0};
-  for(int i = 0; i < 256; i++) {
-	  readData[i] = i;
+
+  MX25L8006E_EraseAll();
+  HAL_Delay(50);
+
+  for (uint8_t i = 0; i < 12; i++) {
+      uint8_t writeData[31];
+      memset(writeData, i + 1, sizeof(writeData)); // Fill writeData with the number i+1
+      MX25L8006E_WriteData(0x000FF1 + i * 31, writeData, 31); // Write data to flash memory
   }
 
-  uint8_t status = MX25L8006E_ReadStatus();
-  printf("Status Register: 0x%02X\n", status);
+  readAndPrintData(0x000FF1,12);
 
-  MX25L8006E_SectorErase(0x123456);
-  HAL_Delay(5000);
 
-//
-//    uint8_t received_data = ReciveDataSpiControl();
-//    HAL_UART_Transmit(&huart1, &received_data, 1, HAL_MAX_DELAY);
-    MX25L8006E_PageProgram(0x123456, writeData, 256);
-//  MX25L8006E_WaitForWriteComplete();
 
-  HAL_Delay(5000);
-
-  MX25L8006E_ReadData(0x123456, readData, 256);
-  HAL_Delay(5000);
-
-  HAL_UART_Transmit(&huart1, (uint8_t*)"Write Data: ", strlen("Write Data: "), HAL_MAX_DELAY);
-//  printHex(writeData, 256);
-
-  HAL_UART_Transmit(&huart1, (uint8_t*)"Read Data: ", strlen("Read Data: "), HAL_MAX_DELAY);
-  printHex(readData, 256);
-
-//  uint8_t data[31] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-//      uint8_t read_buffer[31];
-//
-//      // Erase all sectors
-////      MX25L8006E_EraseAll();
-//      MX25L8006E_SectorErase(0x000000);
-//
-//      // Write data to flash memory starting at address 0x000000
-//      MX25L8006E_WriteData(0x000000, data, sizeof(data));
-//
-//      HAL_Delay(5000);
-//
-//      // Read data from flash memory starting at address 0x000000
-//      MX25L8006E_ReadData(0x000000, read_buffer, sizeof(read_buffer));
-//
-//      HAL_Delay(5000);
-//
-//      printHex(read_buffer,sizeof(read_buffer));
 
 
 
@@ -357,55 +310,8 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-//
-//void MX25L8006E_WriteEnable() {
-//    uint8_t cmd = MX25L8006E_WRITE_ENABLE;
-//    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
-//    HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
-//    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
-//}
-//void MX25L8006E_PageProgram(uint32_t address, uint8_t *data, uint16_t length) {
-//    uint8_t cmd[4];
-//    cmd[0] = MX25L8006E_PAGE_PROGRAM;
-//    cmd[1] = (address >> 16) & 0xFF;
-//    cmd[2] = (address >> 8) & 0xFF;
-//    cmd[3] = address & 0xFF;
-//
-//    MX25L8006E_WriteEnable();
-//
-//    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
-//    HAL_SPI_Transmit(&hspi1, cmd, 4, HAL_MAX_DELAY);
-//    HAL_SPI_Transmit(&hspi1, data, length, HAL_MAX_DELAY);
-//    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
-//    MX25L8006E_WaitForWriteComplete();
-//}
-uint8_t MX25L8006E_ReadStatus() {
-    uint8_t cmd = MX25L8006E_READ_STATUS;
-    uint8_t status;
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
-    HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
-    HAL_SPI_Receive(&hspi1, &status, 1, HAL_MAX_DELAY);
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
-    return status;
-}
 
-//void MX25L8006E_WaitForWriteComplete() {
-//    while (MX25L8006E_ReadStatus() & 0x01) {
-//    	HAL_Delay(1);
-//    }
-//}
-//void MX25L8006E_ReadData(uint32_t address, uint8_t *buffer, uint16_t length) {
-//    uint8_t cmd[4];
-//    cmd[0] = MX25L8006E_READ_DATA;
-//    cmd[1] = (address >> 16) & 0xFF;
-//    cmd[2] = (address >> 8) & 0xFF;
-//    cmd[3] = address & 0xFF;
-//
-//    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
-//    HAL_SPI_Transmit(&hspi1, cmd, 4, HAL_MAX_DELAY);
-//    HAL_SPI_Receive(&hspi1, buffer, length, HAL_MAX_DELAY);
-//    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
-//}
+
 void printHex(uint8_t *data, uint16_t length) {
     for(int i = 0; i < length; i++) {
         char hex[3];
@@ -430,23 +336,7 @@ void MX25L8006E_SectorErase(uint32_t address) {
 
     //MX25L8006E_WaitForWriteComplete(); // 消去完�?を�?つ
 }
-//uint8_t ReciveDataSpiControl(void) {
-//    uint8_t Data = 0;
-//    // 送信バッファが空になるまで??��?��???��?��?
-//    while (HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {}
-//
-//    uint8_t dummy_data = 0xFF;
-//    HAL_SPI_TransmitReceive(&hspi1, &dummy_data, &Data, 1, HAL_MAX_DELAY);
-//
-//    // シフトされたデータを返す
-//    return Data;
-//}
-void MX25L8006E_ReadID(uint8_t *id) {
-    uint8_t cmd = MX25L8006E_READ_ID;
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
-    HAL_SPI_TransmitReceive(&hspi1, &cmd, id, 3, HAL_MAX_DELAY);
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
-}
+
 void MX25L8006E_WriteEnable(void) {
       uint8_t cmd = MX25L8006E_WRITE_ENABLE;
       HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
@@ -461,6 +351,7 @@ void MX25L8006E_WriteEnable(void) {
       do {
           HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
           HAL_SPI_Receive(&hspi1, &status, 1, HAL_MAX_DELAY);
+          HAL_Delay(1);
       } while (status & 0x01); // Wait until the write in progress bit is cleared
       HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
   }
@@ -506,31 +397,29 @@ void MX25L8006E_WriteEnable(void) {
       }
   }
 
-  void MX25L8006E_ReadData(uint32_t start_address, uint8_t *buffer, uint32_t length) {
+  void MX25L8006E_ReadData(uint32_t address, uint8_t *buffer, uint32_t length) {
       uint8_t cmd[4];
-      uint32_t address = start_address;
-      uint32_t remaining = length;
-      uint32_t read_length;
 
-      while (remaining > 0) {
-          // Calculate the length to read in this iteration (max 31 bytes)
-          read_length = (remaining < 31) ? remaining : 31;
+	  cmd[0] = MX25L8006E_READ_DATA;
+	  cmd[1] = (address >> 16) & 0xFF;
+	  cmd[2] = (address >> 8) & 0xFF;
+	  cmd[3] = address & 0xFF;
 
-          // Send read command and address
-          cmd[0] = MX25L8006E_READ_DATA;
-          cmd[1] = (address >> 16) & 0xFF;
-          cmd[2] = (address >> 8) & 0xFF;
-          cmd[3] = address & 0xFF;
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
+	  HAL_SPI_Transmit(&hspi1, cmd, 4, HAL_MAX_DELAY);
+	  HAL_SPI_Receive(&hspi1, buffer, length, HAL_MAX_DELAY);
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
 
-          HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
-          HAL_SPI_Transmit(&hspi1, cmd, 4, HAL_MAX_DELAY);
-          HAL_SPI_Receive(&hspi1, buffer, read_length, HAL_MAX_DELAY);
-          HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
 
-          // Update the address and remaining length
-          address += read_length;
-          buffer += read_length;
-          remaining -= read_length;
+  }
+
+  void readAndPrintData(uint32_t start_address, uint32_t num_blocks) {
+      uint8_t buffer[31];
+      for (uint32_t i = 0; i < num_blocks; i++) {
+          uint32_t address = start_address + (i * 31);
+          MX25L8006E_ReadData(address, buffer, 31);
+          HAL_UART_Transmit(&huart1, (uint8_t*)"Read Data: ", strlen("Read Data: "), HAL_MAX_DELAY);
+          printHex(buffer, 31);
       }
   }
 
