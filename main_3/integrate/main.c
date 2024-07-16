@@ -87,6 +87,9 @@ uint8_t longitude[2];
 uint8_t altitude[3];
 
 uint8_t judg = 0;
+uint8_t volt;
+uint8_t Vphase = 0;
+uint8_t Vpres;
 //uint8_t test[1] = {1};
 //uint8_t receivedChar[1];
 
@@ -588,7 +591,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 	                }
 
 	            }else if (rx_Buff_2[3] == VALVE){
-//	                send_VALVE(tx_Buff_3, command);
+	            	printf("valve!!\r\n");
+	                send_VALVE(tx_Buff_3, command);
 
 	            }else if (rx_Buff_2[3] == MAIN1){
 	                sendfrom = MAIN2;
@@ -607,27 +611,38 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 		}
 
 	    if (huart->Instance == USART3) {  // use ck_rx3
+	    	printf("recive from main1\r\n");
 			checkUART(rx_Buff_3, &ck_a_rx3, &ck_b_rx3);
+			volt = rx_Buff_3[5];
+			Vphase = rx_Buff_3[6];
+			Vpres = rx_Buff_3[7];
+			printf("%d,%d,%d\r\n", volt, Vphase, Vpres);
 
 	        if (flag == 1){
-	            if (rx_Buff_3[3] == MAIN1){
-	                sendfrom = MAIN3;
-	                command = rx_Buff_3[5];
-
+	        	if (rx_Buff_3[3] == MAIN1){
+	        		volt = rx_Buff_3[5];
+	        		Vphase = rx_Buff_3[6];
+	        		Vpres = rx_Buff_3[7];
+	        		printf("%d,%d,%d\r\n", volt, Vphase, Vpres);
+	        	}
+//	            if (rx_Buff_3[3] == MAIN1){
+//	                sendfrom = MAIN3;
+//	                command = rx_Buff_3[5];
+//
 //	                send_MAIN1(tx_Buff_3, sendfrom, command);
-
-	            }else if (rx_Buff_2[3] == MAIN2){
-	                sendfrom = MAIN1;
-	                command = rx_Buff_3[5];
-
-	                send_MAIN2(tx_Buff_2, sendfrom, command);
-
-	            }else if (rx_Buff_2[3] == VALVE){
-//	                printf("not yet");
-	            }
+//
+//	            }else if (rx_Buff_2[3] == MAIN2){
+//	                sendfrom = MAIN1;
+//	                command = rx_Buff_3[5];
+//
+//	                send_MAIN2(tx_Buff_2, sendfrom, command);
+//	            }
 	        }
 
 	        flag = 0;
+			MX_USART3_UART_Init();
+			memset(rx_Buff_3, 0, RX_BUFF_SIZE_MAIN1);
+			HAL_UART_Receive_IT(&huart3, rx_Buff_3, RX_BUFF_SIZE_MAIN1);
 
 	    }
 
@@ -722,9 +737,9 @@ void send_GROUND(){
 	tx_Buff_2[19] = (int)pressure & 0xFF;
 	tx_Buff_2[20] =(int)temperature;
 	tx_Buff_2[21] = ((temp_decimal_first_digit & 0x0F) << 4) | (judg << 2) | (flight_pin_status << 1);
-	tx_Buff_2[22] =0;
-	tx_Buff_2[35] = count_pres;
-	tx_Buff_2[36] = count_pres * 10;
+	tx_Buff_2[22] = volt;
+	tx_Buff_2[35] = Vphase;
+	tx_Buff_2[36] = Vpres;
 
 	calculateChecksum(tx_Buff_2, TX_BUFF_SIZE_MAIN2, &ck_a_tx2, &ck_b_tx2);
 	tx_Buff_2[TX_BUFF_SIZE_MAIN2 - 2] = ck_a_tx2;
@@ -735,22 +750,23 @@ void send_GROUND(){
 }
 
 
-//void send_VALVE(uint8_t *tx_Buff, uint8_t com){ // use ck_tx3
-//	sendto = MAIN1;
-//	wantto = VALVE;
-//
-//	tx_Buff[0] = (ADDRESS >> 8) & 0xFF;
-//	tx_Buff[1] = ADDRESS & 0xFF;
-//	tx_Buff[2] = sendto;
-//	tx_Buff[3] = wantto;
-//	tx_Buff[4] = TX_BUFF_SIZE_MAIN1;
-//    tx_Buff[5] = com;
-//
-//	calculateChecksum(tx_Buff, TX_BUFF_SIZE_MAIN1, &ck_a_tx3, &ck_b_tx3);
-//	tx_Buff[-2] = ck_a_tx3;
-//	tx_Buff[-1] = ck_b_tx3;
-//
-//}
+void send_VALVE(uint8_t *tx_Buff, uint8_t com){ // use ck_tx3
+	sendto = MAIN1;
+	wantto = VALVE;
+
+	tx_Buff[0] = (ADDRESS >> 8) & 0xFF;
+	tx_Buff[1] = ADDRESS & 0xFF;
+	tx_Buff[2] = sendto;
+	tx_Buff[3] = wantto;
+	tx_Buff[4] = TX_BUFF_SIZE_MAIN1;
+    tx_Buff[5] = com;
+
+	calculateChecksum(tx_Buff, TX_BUFF_SIZE_MAIN1, &ck_a_tx3, &ck_b_tx3);
+	tx_Buff[TX_BUFF_SIZE_MAIN1 -2] = ck_a_tx3;
+	tx_Buff[TX_BUFF_SIZE_MAIN1 -1] = ck_b_tx3;
+	HAL_UART_Transmit(&huart3, tx_Buff_3, TX_BUFF_SIZE_MAIN1, HAL_MAX_DELAY);
+
+}
 
 
 //void send_MAIN1(uint8_t *tx_Buff, SEND_TO from, uint8_t com){  // use ck_tx3
