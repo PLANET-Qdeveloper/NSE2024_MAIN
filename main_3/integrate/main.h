@@ -102,9 +102,9 @@ void checkUART(uint8_t *rx_Buff, uint8_t *ck_a, uint8_t *ck_b);   // if True, it
 #define LANDED_PERIOD     10   // 100Hz
 #define EMERGENCY_PERIOD  10   // 100Hz
 #define MOSFET_PERIOD  3000   // 3s
-#define BURNING_TIME  700   // 7s
-#define TOP_DETECT_TIME  2000   // 20s
-#define SEP_TIME 3 //3s
+#define BURNING_TIME  500   // 5s
+#define TOP_DETECT_TIME  100000  // 1000s
+#define SEP_TIME 5 //5s
 
 
 #define ADDRESS 2024   // inspire from this year
