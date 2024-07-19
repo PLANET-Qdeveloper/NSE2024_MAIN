@@ -63,9 +63,11 @@ uint8_t rx_Buff_2[RX_BUFF_SIZE_MAIN2];   // receive from main2
 uint8_t rx_Buff_3[RX_BUFF_SIZE_MAIN1];   // receive from main2
 
 uint8_t tx_Buff_2[TX_BUFF_SIZE_MAIN2];   // send to main2
-uint8_t tx_Buff_3[TX_BUFF_SIZE_MAIN1];   // send to main1
+uint8_t tx_Buff_3[TX_BUFF_SIZE_MAIN1];   // send to 	main1
 
-uint8_t rx_Buff_GPS[GPS_BUFFER];
+uint8_t rx_Buff_GPS[1];
+uint8_t ReceivedData[GPS_BUFFER];
+uint16_t gps_rx_index = 0;
 
 uint8_t command;
 uint8_t Buff_size;
@@ -90,8 +92,13 @@ uint8_t judg = 0;
 uint8_t volt;
 uint8_t Vphase = 0;
 uint8_t Vpres;
+
+uint8_t RecordData[31];
+uint16_t RecordCount = 0;
 //uint8_t test[1] = {1};
 //uint8_t receivedChar[1];
+
+//uint8_t testBuffer[256];
 
 /* USER CODE END PV */
 
@@ -145,9 +152,9 @@ int main(void)
   MX_TIM6_Init();
   MX_TIM7_Init();
   MX_TIM14_Init();
-  MX_TIM15_Init();
   MX_TIM16_Init();
   MX_TIM17_Init();
+  MX_TIM15_Init();
   /* USER CODE BEGIN 2 */
   MAIN3_Init();
 
@@ -160,10 +167,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  printf("looping\r\n");
-//	  accelerometer = bno055_getVectorAccelerometer();
-//	  printf("x: %.2f y: %.2f z: %.2f\r\n", accelerometer.x, accelerometer.y, accelerometer.z);
-//	  HAL_Delay(1000);
+//	  printf("looping\r\n");
 	  if (currentPhase != previousPhase) {
 
 
@@ -194,14 +198,12 @@ int main(void)
 	switch (currentPhase) {
 		  case SAFETY:
 			 printf("safety\r\n");
-//			 currentPhase += 1;
 			 measure();
-//			 record();
+			 record();
 			 send_GROUND();
-//			 HAL_UART_Transmit(&huart1, test, 1, HAL_MAX_DELAY);
-//			 HAL_UART_Transmit(&huart2, tx_Buff_2, TX_BUFF_SIZE_MAIN2, HAL_MAX_DELAY);
 
 			 HAL_Delay(SAFETY_PERIOD);
+
 			  break;
 		  case READY:
 			  printf("ready\r\n");
@@ -296,7 +298,8 @@ void MAIN3_Init() {
 
     HAL_UART_Receive_IT(&huart2, rx_Buff_2, RX_BUFF_SIZE_MAIN2);
     HAL_UART_Receive_IT(&huart3, rx_Buff_3, RX_BUFF_SIZE_MAIN1);
-	HAL_UART_Receive_IT(&huart4, rx_Buff_GPS, GPS_BUFFER - 1);
+    HAL_UART_Receive_IT(&huart4, rx_Buff_GPS, 1);
+//    HAL_UART_Receive_IT(&huart4, testBuffer, 255);
 	bno055_assignI2C(&hi2c1);
 	bno055_setup();
 	bno055_setOperationModeNDOF();
@@ -305,22 +308,47 @@ void MAIN3_Init() {
 	bmp280.addr = BMP280_I2C_ADDRESS_0;
 	bmp280.i2c = &hi2c2;
 
-//	const char setRate10Hz[] = "$PMTK220,100*2F\r\n";
-//	HAL_UART_Transmit(&huart4, (uint8_t*)setRate10Hz, strlen(setRate10Hz), HAL_MAX_DELAY);
-//	const char setGGAOnly[] = "$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n";
-//	HAL_UART_Transmit(&huart4, (uint8_t*)setGGAOnly, strlen(setGGAOnly), HAL_MAX_DELAY);
+	 const char setRate10Hz[] = "$PMTK220,100*2F\r\n";
+	 HAL_UART_Transmit(&huart4, (uint8_t*)setRate10Hz, strlen(setRate10Hz), HAL_MAX_DELAY);
+//	 const char setBaudRate[] = "$PMTK251,115200*1F\r\n";
+//	 HAL_UART_Transmit(&huart4, (uint8_t*)setBaudRate, strlen(setBaudRate), HAL_MAX_DELAY);
+//	 HAL_UART_DeInit(&huart4);
+//	     huart4.Init.BaudRate = 115200;
+//	     if (HAL_UART_Init(&huart4) != HAL_OK) {
+//	         Error_Handler();
+//	     }
+	 const char setOutput10Hz[] = "$PMTK300,100,0,0,0,0*2C\r\n";
+	 HAL_UART_Transmit(&huart4, (uint8_t*)setOutput10Hz, strlen(setOutput10Hz), HAL_MAX_DELAY);
+	 const char setGGAOnly[] = "$PMTK314,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29\r\n";
+	 HAL_UART_Transmit(&huart4, (uint8_t*)setGGAOnly, strlen(setGGAOnly), HAL_MAX_DELAY);
+
+	  HAL_SPI_MspInit(&hspi1);
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET); // CS=Hにしておく
+
+	    __HAL_SPI_ENABLE(&hspi1);
+
+	  MX25L8006E_EraseAll();
+	  HAL_Delay(50);
+
+//	  for (uint8_t i = 0; i < 12; i++) {
+//	      uint8_t writeData[31];
+//	      memset(writeData, i + 1, sizeof(writeData)); // Fill writeData with the number i+1
+//	      MX25L8006E_WriteData(0x000FF1 + i * 31, writeData, 31); // Write data to flash memory
+//	  }
+
+//	  readAndPrintData(0x000FF1,12);
+
 
 	HAL_TIM_Base_Start_IT(&htim16);//Mission time
 	HAL_TIM_Base_Start_IT(&htim7);//Send ground
 
-//	HAL_UART_Receive_IT(&huart1, receivedChar, 1);
-//    HAL_UART_Receive_IT(&huart2, receivedChar, 1);
 
-	while (!bmp280_init(&bmp280, &bmp280.params))
-	{
+//	while (!bmp280_init(&bmp280, &bmp280.params))
+//	{
 //		printf("BME280 initialization failed\r\n");
-		HAL_Delay(2000);
-	}
+//		HAL_Delay(2000);
+//	}
 }
 
 void measure(){
@@ -334,15 +362,66 @@ void measure(){
 }
 
 void record(){
-//	printf("record\r\n");
-//	printf("mission time : %d\r\n",mission_time);
-//	printf("flight time : %d\r\n",flight_time);
-//	printf("x: %d y: %d z: %d\r\n", accelerometer.x *100, accelerometer.y * 100, accelerometer.z * 100);
-//	printf("x: %d y: %d z: %d\r\n", gyroscope.x * 100, gyroscope.y * 100, gyroscope.z * 100);
-//	printf("temperature: %d pressure: %d humidity: %d\r\n", temperature * 100, pressure * 100, humidity * 100);
-//	printf("33.%2d%2d\r\n", latitude[0], latitude[1]);
-//	printf("130.%2d%2d\r\n", longitude[0], longitude[1]);
-//	printf("%2d%2d.%2d\r\n", altitude[0], altitude[1],altitude[2]);
+	if(RecordCount < 33825){
+		int temp_decimal_first_digit = (int)(temperature * 10) % 10;
+		uint8_t flight_pin_status = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15);
+
+		uint8_t accx_int = (int)accelerometer.x;
+		uint8_t accx_decimal = (int)((accelerometer.x - accx_int) * 100);
+		RecordData[16] = accx_int & 0xFF;
+		RecordData[17] = accx_decimal & 0xFF;
+
+		uint8_t accy_int = (int)accelerometer.y;
+		uint8_t accy_decimal = (int)((accelerometer.y - accy_int) * 100);
+		RecordData[18] = accy_int & 0xFF;
+		RecordData[19] = accy_decimal & 0xFF;
+
+		uint8_t accz_int = (int)accelerometer.z;
+		uint8_t accz_decimal = (int)((accelerometer.z - accz_int) * 100);
+		RecordData[20] = accz_int & 0xFF;
+		RecordData[21] = accz_decimal & 0xFF;
+
+		uint8_t gyrx_int = (int)gyroscope.x;
+		uint8_t gyrx_decimal = (int)((gyroscope.x - gyrx_int) * 100);
+		RecordData[22] = gyrx_int & 0xFF;
+		RecordData[23] = gyrx_decimal & 0xFF;
+
+		uint8_t gyry_int = (int)gyroscope.y;
+		uint8_t gyry_decimal = (int)((gyroscope.y - gyry_int) * 100);
+		RecordData[24] = gyry_int & 0xFF;
+		RecordData[25] = gyry_decimal & 0xFF;
+
+		uint8_t gyrz_int = (int)gyroscope.z;
+		uint8_t gyrz_decimal = (int)((gyroscope.z - gyrz_int) * 100);
+		RecordData[26] = gyrz_int & 0xFF;
+		RecordData[27] = gyrz_decimal & 0xFF;
+
+
+		RecordData[0] = currentPhase;
+		RecordData[1] = (flight_time >> 8) & 0xFF;
+		RecordData[2] = flight_time & 0xFF;
+		RecordData[3] = latitude[0];
+		RecordData[4] = latitude[1];
+		RecordData[5] = longitude[0];
+		RecordData[6] = longitude[1];
+		RecordData[7] = altitude[0];
+		RecordData[8] = altitude[1];
+		RecordData[9] = altitude[2];
+		RecordData[10] = ((int)pressure >> 16) & 0xFF;
+		RecordData[11] = ((int)pressure >> 8) & 0xFF;
+		RecordData[12] = (int)pressure & 0xFF;
+		RecordData[13] =(int)temperature;
+		RecordData[14] = ((temp_decimal_first_digit & 0x0F) << 4) | (judg << 2) | (flight_pin_status << 1);
+		RecordData[15] = volt;
+		RecordData[28] = Vphase;
+		RecordData[29] = Vpres;
+		RecordData[30] = 0b11111111;
+//		MX25L8006E_WriteData(0x000000 + RecordCount * 31, RecordData, 31); // Write data to flash memory
+//		RecordCount ++;
+//		if(RecordCount % 10 == 0){
+//			readAndPrintData(0x000000 + (RecordCount - 10) * 31 ,10);
+//		}
+	}
 
 }
 
@@ -645,17 +724,74 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 			HAL_UART_Receive_IT(&huart3, rx_Buff_3, RX_BUFF_SIZE_MAIN1);
 
 	    }
+		if (huart->Instance == USART4) {
+			// 変数の宣言
+			char temporalData[1];
+			temporalData[0] = (char)rx_Buff_GPS[0];
+			ReceivedData[gps_rx_index] = temporalData[0];
+
+			if (temporalData[0] == '\n') { // 受信データの終端を判定
+				printf("end of sentence\r\n");
+				char charData[GPS_BUFFER];
+				strncpy(charData, (char *)ReceivedData, GPS_BUFFER);
+				charData[GPS_BUFFER - 1] = '\0'; // 文字列の終端を設定
+				printf("%s", charData); // printfの形式指定子を使用
+				// HAL_UART_Transmit(&huart1, (uint8_t *)charData, GPS_BUFFER, HAL_MAX_DELAY);
+				memset(charData, 0, GPS_BUFFER);
+				gps_rx_index = 0;
+			} else {
+				gps_rx_index++;
+				if (gps_rx_index >= GPS_BUFFER) {
+					gps_rx_index = 0; // バッファオーバーフロー防止のためリセット
+				}
+			}
+
+			// 次のバイトを受信
+			HAL_UART_Receive_IT(huart, rx_Buff_GPS, 1);
+		}
 
 
 
-	if (huart->Instance == USART4) {
-	    rx_Buff_GPS[GPS_BUFFER - 1] = '\0';
-//	    printf(rx_Buff_GPS);
-	    processGPSData(rx_Buff_GPS);
-	    MX_USART4_UART_Init();
-       	HAL_UART_Receive_IT(&huart4, rx_Buff_GPS, GPS_BUFFER - 1);
 
-       }
+//	if (huart->Instance == USART4) {
+////		printf("receive from GPS\r\n");
+////		printf("%d\r\n",gps_rx_index);
+//
+////		testBuffer[255] = '\0';
+////		char buffer[256];
+////		strncpy(buffer, (char *)testBuffer, sizeof(buffer));
+////		printf(buffer);
+////		MX_USART4_UART_Init();
+////		 HAL_UART_Receive_IT(&huart4, testBuffer, 255);
+//
+//		char temporalData[1];
+//		ReceivedData[gps_rx_index] = rx_Buff_GPS[0];
+//		temporalData[0] = (char)rx_Buff_GPS[0];
+//
+//        if (temporalData[0] == '\n') { // 受信データの終端を判定
+//        	printf("end of sentence\r\n");
+//        	char charData[GPS_BUFFER];
+//        	strncpy(charData, (char *)ReceivedData, GPS_BUFFER);
+//        	charData[GPS_BUFFER - 1] = '\0'; // 文字列の終端を設定
+//        	printf(charData);
+////        	HAL_UART_Transmit(&huart1, (uint8_t *)charData, GPS_BUFFER,HAL_MAX_DELAY);
+//            memset(charData,0,GPS_BUFFER);
+//            gps_rx_index = 0;
+//        } else {
+//        	gps_rx_index ++;
+//			if (gps_rx_index >= GPS_BUFFER) {
+//				gps_rx_index = 0; // バッファオーバーフロー防止のためリセット
+//			}
+//        }
+////        HAL_UART_Receive_IT(huart, &rx_Buff_GPS[gps_rx_index], 1); // 次のバイトを受信
+////	    rx_Buff_GPS[GPS_BUFFER - 1] = '\0';
+//
+////	    processGPSData(rx_Buff_GPS);
+////	    memset(rx_Buff_GPS,0,GPS_BUFFER);
+//	    MX_USART4_UART_Init();
+//       	HAL_UART_Receive_IT(huart, rx_Buff_GPS, 1);
+//
+//       }
 }
 
 
@@ -815,11 +951,137 @@ void checkUART(uint8_t *rx_Buff, uint8_t *ck_a, uint8_t *ck_b){
 	}
 }
 
+void printHex(uint8_t *data, uint16_t length) {
+    for(int i = 0; i < length; i++) {
+        char hex[3];
+        sprintf(hex, "%02X", data[i]);
+        HAL_UART_Transmit(&huart1, (uint8_t*)hex, 2, HAL_MAX_DELAY);
+        HAL_UART_Transmit(&huart1, (uint8_t*)" ", 1, HAL_MAX_DELAY);
+    }
+    HAL_UART_Transmit(&huart1, (uint8_t*)"\r\n", 2, HAL_MAX_DELAY);
+}
+void MX25L8006E_SectorErase(uint32_t address) {
+    uint8_t cmd[4];
+    cmd[0] = MX25L8006E_SECTOR_ERASE;
+    cmd[1] = (address >> 16) & 0xFF;
+    cmd[2] = (address >> 8) & 0xFF;
+    cmd[3] = address & 0xFF;
+
+    MX25L8006E_WriteEnable();
+
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
+    HAL_SPI_Transmit(&hspi1, cmd, 4, HAL_MAX_DELAY);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
+
+}
+
+void MX25L8006E_WriteEnable(void) {
+      uint8_t cmd = MX25L8006E_WRITE_ENABLE;
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
+      HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
+  }
+  void MX25L8006E_WaitForWriteComplete(void) {
+      uint8_t cmd = MX25L8006E_READ_STATUS;
+      uint8_t status = 0;
+
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
+      do {
+          HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
+          HAL_SPI_Receive(&hspi1, &status, 1, HAL_MAX_DELAY);
+          HAL_Delay(1);
+      } while (status & 0x01); // Wait until the write in progress bit is cleared
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
+  }
+  void MX25L8006E_PageProgram(uint32_t address, uint8_t *data, uint16_t length) {
+      uint8_t cmd[4];
+
+      MX25L8006E_WriteEnable();
+
+      cmd[0] = MX25L8006E_PAGE_PROGRAM;
+      cmd[1] = (address >> 16) & 0xFF;
+      cmd[2] = (address >> 8) & 0xFF;
+      cmd[3] = address & 0xFF;
+
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
+      HAL_SPI_Transmit(&hspi1, cmd, 4, HAL_MAX_DELAY);
+      HAL_SPI_Transmit(&hspi1, data, length, HAL_MAX_DELAY);
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
+
+      MX25L8006E_WaitForWriteComplete();
+  }
+
+  void MX25L8006E_WriteData(uint32_t start_address, uint8_t *data, uint32_t total_length) {
+      uint32_t address = start_address;
+      uint32_t remaining = total_length;
+      uint32_t write_length;
+
+      while (remaining > 0) {
+          // Calculate the length to write in this iteration (max 31 bytes)
+          write_length = (remaining < 31) ? remaining : 31;
+
+          // Ensure the data doesn't cross a page boundary (256 bytes per page)
+          if ((address % 256) + write_length > 256) {
+              write_length = 256 - (address % 256);
+          }
+
+          // Write the data
+          MX25L8006E_PageProgram(address, data, write_length);
+
+          // Update the address and remaining length
+          address += write_length;
+          data += write_length;
+          remaining -= write_length;
+      }
+  }
+
+  void MX25L8006E_ReadData(uint32_t address, uint8_t *buffer, uint32_t length) {
+      uint8_t cmd[4];
+
+	  cmd[0] = MX25L8006E_READ_DATA;
+	  cmd[1] = (address >> 16) & 0xFF;
+	  cmd[2] = (address >> 8) & 0xFF;
+	  cmd[3] = address & 0xFF;
+
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
+	  HAL_SPI_Transmit(&hspi1, cmd, 4, HAL_MAX_DELAY);
+	  HAL_SPI_Receive(&hspi1, buffer, length, HAL_MAX_DELAY);
+	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
+
+
+  }
+
+  void readAndPrintData(uint32_t start_address, uint32_t num_blocks) {
+      uint8_t buffer[31];
+      for (uint32_t i = 0; i < num_blocks; i++) {
+          uint32_t address = start_address + (i * 31);
+          MX25L8006E_ReadData(address, buffer, 31);
+          HAL_UART_Transmit(&huart1, (uint8_t*)"Read Data: ", strlen("Read Data: "), HAL_MAX_DELAY);
+          printHex(buffer, 31);
+      }
+  }
+
+  void MX25L8006E_EraseAll(void) {
+      uint8_t cmd = 0xC7; // Chip Erase command
+
+      MX25L8006E_WriteEnable();
+
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // CS Low
+      HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);   // CS High
+
+      MX25L8006E_WaitForWriteComplete();
+  }
+
 //To use printf
 int _write(int file, char *ptr, int len)
 {
   HAL_UART_Transmit(&huart1,(uint8_t *)ptr,len,HAL_MAX_DELAY);
   return len;
+}
+int __io_putchar(int ch) {
+    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+    return ch;
 }
 /* USER CODE END 4 */
 
