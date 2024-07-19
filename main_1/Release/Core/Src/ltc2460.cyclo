@@ -1,0 +1,3 @@
+../Core/Src/ltc2460.c:8:23:LTC2460_INIT	2
+../Core/Src/ltc2460.c:21:23:LTC2460_SET_SPEED	2
+../Core/Src/ltc2460.c:34:23:LTC2460_READ	5
