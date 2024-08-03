@@ -199,9 +199,7 @@ int main(void)
 		  case SAFETY:
 			 printf("safety\r\n");
 			 measure();
-			 record();
-			 send_GROUND();
-
+//			 record();
 			 HAL_Delay(SAFETY_PERIOD);
 
 			  break;
@@ -328,7 +326,7 @@ void MAIN3_Init() {
 
 	    __HAL_SPI_ENABLE(&hspi1);
 
-	  MX25L8006E_EraseAll();
+//	  MX25L8006E_EraseAll();
 	  HAL_Delay(50);
 
 //	  for (uint8_t i = 0; i < 12; i++) {
@@ -344,11 +342,11 @@ void MAIN3_Init() {
 	HAL_TIM_Base_Start_IT(&htim7);//Send ground
 
 
-//	while (!bmp280_init(&bmp280, &bmp280.params))
-//	{
-//		printf("BME280 initialization failed\r\n");
-//		HAL_Delay(2000);
-//	}
+	while (!bmp280_init(&bmp280, &bmp280.params))
+	{
+		printf("BME280 initialization failed\r\n");
+		HAL_Delay(2000);
+	}
 }
 
 void measure(){
@@ -416,8 +414,8 @@ void record(){
 		RecordData[28] = Vphase;
 		RecordData[29] = Vpres;
 		RecordData[30] = 0b11111111;
-//		MX25L8006E_WriteData(0x000000 + RecordCount * 31, RecordData, 31); // Write data to flash memory
-//		RecordCount ++;
+		MX25L8006E_WriteData(0x000000 + RecordCount * 31, RecordData, 31); // Write data to flash memory
+		RecordCount ++;
 //		if(RecordCount % 10 == 0){
 //			readAndPrintData(0x000000 + (RecordCount - 10) * 31 ,10);
 //		}
@@ -426,19 +424,19 @@ void record(){
 }
 
 void top_detect(){
-	if(previous_pressure <= pressure){
-		count_pres += 1;
-		printf("count : %d\r\n", count_pres);
-		if(count_pres >= 10){
-		    HAL_TIM_Base_Stop_IT(&htim17);
-			currentPhase = SEP;
-			judg = 2;
-			count_pres = 0;
-		}
-	}else{
-		count_pres = 0;
-	}
-	previous_pressure = pressure;
+//	if(previous_pressure <= pressure){
+//		count_pres += 1;
+//		printf("count : %d\r\n", count_pres);
+//		if(count_pres >= 10){
+//		    HAL_TIM_Base_Stop_IT(&htim17);
+//			currentPhase = SEP;
+//			judg = 2;
+//			count_pres = 0;
+//		}
+//	}else{
+//		count_pres = 0;
+//	}
+//	previous_pressure = pressure;
 }
 
 void processGPSData(uint8_t *buffer){
@@ -655,8 +653,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 
 	                            case EMERGENCY:
 	                                currentPhase = SAFETY;
+	                                if(flight_time > 0){
 	                                HAL_TIM_Base_Stop_IT(&htim15);
 	                                flight_time = 0;
+	                                }
 	                                break;
 	                        }
 
@@ -731,13 +731,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 			ReceivedData[gps_rx_index] = temporalData[0];
 
 			if (temporalData[0] == '\n') { // 受信データの終端を判定
-				printf("end of sentence\r\n");
-				char charData[GPS_BUFFER];
-				strncpy(charData, (char *)ReceivedData, GPS_BUFFER);
-				charData[GPS_BUFFER - 1] = '\0'; // 文字列の終端を設定
-				printf("%s", charData); // printfの形式指定子を使用
+//				printf("end of sentence\r\n");
+				ReceivedData[GPS_BUFFER - 1] = '\0';
+				processGPSData(ReceivedData);
+				memset(ReceivedData, 0, GPS_BUFFER);
+//				char charData[GPS_BUFFER];
+//				strncpy(charData, (char *)ReceivedData, GPS_BUFFER);
+//				charData[GPS_BUFFER - 1] = '\0'; // 文字列の終端を設定
+//				printf("%s", charData); // printfの形式指定子を使用
 				// HAL_UART_Transmit(&huart1, (uint8_t *)charData, GPS_BUFFER, HAL_MAX_DELAY);
-				memset(charData, 0, GPS_BUFFER);
+//				memset(charData, 0, GPS_BUFFER);
 				gps_rx_index = 0;
 			} else {
 				gps_rx_index++;
