@@ -88,6 +88,16 @@ void send_MAIN2(uint8_t *tx_Buff, SEND_TO want_from, uint8_t com);
 void calculateChecksum(uint8_t *Buff, uint8_t Buff_size, uint8_t *ck_a, uint8_t *ck_b);  // for checksum
 void checkUART(uint8_t *rx_Buff, uint8_t *ck_a, uint8_t *ck_b);   // if True, it adjusts Buff_size, PHASE
 
+void printHex(uint8_t *data, uint16_t length) ;
+void MX25L8006E_SectorErase(uint32_t address);
+void MX25L8006E_WriteEnable(void);
+void MX25L8006E_WaitForWriteComplete(void);
+void MX25L8006E_PageProgram(uint32_t address, uint8_t *data, uint16_t length);
+void MX25L8006E_WriteData(uint32_t start_address, uint8_t *data, uint32_t total_length);
+void MX25L8006E_ReadData(uint32_t start_address, uint8_t *buffer, uint32_t length);
+void readAndPrintData(uint32_t start_address, uint32_t num_blocks);
+void MX25L8006E_EraseAll(void);
+
 
 /* USER CODE END EFP */
 
@@ -103,7 +113,7 @@ void checkUART(uint8_t *rx_Buff, uint8_t *ck_a, uint8_t *ck_b);   // if True, it
 #define EMERGENCY_PERIOD  10   // 100Hz
 #define MOSFET_PERIOD  3000   // 3s
 #define BURNING_TIME  500   // 5s
-#define TOP_DETECT_TIME  100000  // 1000s
+#define TOP_DETECT_TIME  1500  // 15s
 #define SEP_TIME 5 //5s
 
 
@@ -116,6 +126,13 @@ void checkUART(uint8_t *rx_Buff, uint8_t *ck_a, uint8_t *ck_b);   // if True, it
 #define RX_BUFF_SIZE_MAIN2 8  // buffer size send to main2
 
 #define GPS_BUFFER 256
+
+#define MX25L8006E_READ_DATA 0x03
+#define MX25L8006E_WRITE_ENABLE 0x06
+#define MX25L8006E_PAGE_PROGRAM 0x02
+#define MX25L8006E_SECTOR_ERASE 0x20
+#define MX25L8006E_READ_STATUS 0x05
+#define MX25L8006E_READ_ID 0x9F
 
 /* USER CODE END Private defines */
 
