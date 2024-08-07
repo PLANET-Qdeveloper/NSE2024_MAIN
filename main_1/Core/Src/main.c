@@ -161,8 +161,8 @@ int main(void)
   {
     uint16_t voltage;
     LTC2460_READ(&ltc2460, &voltage);
-    int voltage_micro = voltage * 109;
-    printf("voltage_raw: %d voltage: %d.%06d\r\n",voltage, voltage_micro/1000000, voltage_micro%1000000);
+    int voltage_micro = voltage * 218;
+    printf("tank_pressure: %d phase: %d voltage: %d.%06d\r\n",TankPressure,PHASE, voltage_micro/1000000, voltage_micro%1000000);
     voltage_send = voltage_micro / 100000;
 
     send_MAIN3(tx_Buff_3);
