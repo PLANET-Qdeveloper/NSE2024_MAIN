@@ -83,6 +83,7 @@ uint8_t PHASE;   // for phase
 uint8_t TankPressure;   // for tank pressure
 SEND_TO sendto, sendfrom, wantto;
 uint8_t voltage_send;
+int valve_received = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -164,9 +165,12 @@ int main(void)
     int voltage_micro = voltage * 218;
     printf("tank_pressure: %d phase: %d voltage: %d.%06d\r\n",TankPressure,PHASE, voltage_micro/1000000, voltage_micro%1000000);
     voltage_send = voltage_micro / 100000;
+    if(valve_received){
+    	send_MAIN3(tx_Buff_3);
+    	printf("Voltage_send:%d\r\n", voltage_send);
+    	HAL_UART_Transmit(&huart2, tx_Buff_3, TX_BUFF_SIZE_MAIN3, 10);
+    }
 
-    send_MAIN3(tx_Buff_3);
-    printf("Voltage_send:%d\r\n", voltage_send);
     HAL_UART_Transmit(&huart2, tx_Buff_3, TX_BUFF_SIZE_MAIN3, 10);
     HAL_Delay(1000);
     /* USER CODE END WHILE */
@@ -476,6 +480,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     {
     	TankPressure = rx_Buff_V[1];
     	PHASE = rx_Buff_V[4];
+    	valve_received = 1;
     	printf("TP:%d\r\nPHASE:%d\r\n", TankPressure, PHASE);
     }
 	  flag = 0;
