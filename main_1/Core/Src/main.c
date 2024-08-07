@@ -71,6 +71,7 @@ uint8_t tx_Buff_V[TX_BUFF_SIZE_VALVE];   // send to valve
 
 uint8_t rx_Buff_PC[1];   // receive from PC
 
+int valid_valve_com = 0;
 uint8_t command;
 uint8_t Buff_size;
 uint8_t count;   // adjustment of downlink rate
@@ -148,12 +149,14 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET);
 
-  HAL_UART_Receive_IT(&huart1, rx_Buff_V, RX_BUFF_SIZE_VALVE);
+  HAL_UART_Receive_IT(&huart1, rx_Buff_V, 1);
 
   HAL_UART_Receive_IT(&huart2, rx_Buff_3, RX_BUFF_SIZE_MAIN3);
 
   HAL_UART_Receive_IT(&huart4, rx_Buff_PC, 1);
 
+  PHASE = 255;
+  TankPressure = 255;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -161,17 +164,19 @@ int main(void)
   while (1)
   {
     uint16_t voltage;
-    LTC2460_READ(&ltc2460, &voltage);
-    int voltage_micro = voltage * 218;
-    printf("tank_pressure: %d phase: %d voltage: %d.%06d\r\n",TankPressure,PHASE, voltage_micro/1000000, voltage_micro%1000000);
-    voltage_send = voltage_micro / 100000;
-    if(valve_received){
-    	send_MAIN3(tx_Buff_3);
-    	printf("Voltage_send:%d\r\n", voltage_send);
-    	HAL_UART_Transmit(&huart2, tx_Buff_3, TX_BUFF_SIZE_MAIN3, 10);
-    }
 
-    HAL_UART_Transmit(&huart2, tx_Buff_3, TX_BUFF_SIZE_MAIN3, 10);
+    LTC2460_READ(&ltc2460, &voltage);
+    /// 　計算上は109
+    ///   実測で130
+    int voltage_micro = voltage * 436 - 7138085;
+    printf("tick: %d valid_valve_com: %d tank_pressure: %d phase: %d voltage: %d.%06d raw: %d\r\n",HAL_GetTick(),valid_valve_com, TankPressure,PHASE, voltage_micro/1000000, voltage_micro%1000000, voltage);
+    voltage_send = voltage_micro / 100000;
+	send_MAIN3(tx_Buff_3);
+	printf("Voltage_send:%d\r\n", voltage_send);
+	HAL_UART_Transmit(&huart2, tx_Buff_3, TX_BUFF_SIZE_MAIN3, 10);
+
+
+    ///HAL_UART_Transmit(&huart2, tx_Buff_3, TX_BUFF_SIZE_MAIN3, 10);
     HAL_Delay(1000);
     /* USER CODE END WHILE */
 
@@ -476,17 +481,30 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	if (huart->Instance == USART1)
 	{
     printf("Received from Valve\r\n");
-    if(rx_Buff_V[0] == 0x24)
+    if(!valid_valve_com){
+    	if(rx_Buff_V[0] == 0x24)
+    	    {
+    		HAL_UART_Receive_IT(&huart1, &rx_Buff_V[1], RX_BUFF_SIZE_VALVE - 1);
+    		valid_valve_com = 1;
+    		return;
+    	    }else{
+    	    	  MX_USART1_UART_Init();
+				  memset(rx_Buff_V, 0, RX_BUFF_SIZE_VALVE);
+				  HAL_UART_Receive_IT(&huart1, rx_Buff_V, 1);
+				  return;
+    	    }
+    }else
     {
     	TankPressure = rx_Buff_V[1];
     	PHASE = rx_Buff_V[4];
     	valve_received = 1;
     	printf("TP:%d\r\nPHASE:%d\r\n", TankPressure, PHASE);
     }
+      valid_valve_com = 0;
 	  flag = 0;
 	  MX_USART1_UART_Init();
 	  memset(rx_Buff_V, 0, RX_BUFF_SIZE_VALVE);
-	  HAL_UART_Receive_IT(&huart1, rx_Buff_V, RX_BUFF_SIZE_VALVE);
+	  HAL_UART_Receive_IT(&huart1, rx_Buff_V, 1);
 	}
   // Main3
 	if (huart->Instance == USART2)
