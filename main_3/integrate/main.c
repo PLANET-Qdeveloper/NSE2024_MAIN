@@ -176,6 +176,7 @@ int main(void)
 				  break;
 		  	  case READY:
 		  		  HAL_TIM_Base_Start_IT(&htim6);//Flight pin
+		  		  MX25L8006E_EraseAll();
 				  break;
 			  case BURNING:
 				  HAL_TIM_Base_Start_IT(&htim15);//Timer1
@@ -199,7 +200,6 @@ int main(void)
 		  case SAFETY:
 			 printf("safety\r\n");
 			 measure();
-//			 record();
 			 HAL_Delay(SAFETY_PERIOD);
 
 			  break;
@@ -326,8 +326,7 @@ void MAIN3_Init() {
 
 	    __HAL_SPI_ENABLE(&hspi1);
 
-//	  MX25L8006E_EraseAll();
-	  HAL_Delay(50);
+
 
 //	  for (uint8_t i = 0; i < 12; i++) {
 //	      uint8_t writeData[31];
@@ -424,19 +423,19 @@ void record(){
 }
 
 void top_detect(){
-//	if(previous_pressure <= pressure){
-//		count_pres += 1;
-//		printf("count : %d\r\n", count_pres);
-//		if(count_pres >= 10){
-//		    HAL_TIM_Base_Stop_IT(&htim17);
-//			currentPhase = SEP;
-//			judg = 2;
-//			count_pres = 0;
-//		}
-//	}else{
-//		count_pres = 0;
-//	}
-//	previous_pressure = pressure;
+	if(previous_pressure <= pressure){
+		count_pres += 1;
+		printf("count : %d\r\n", count_pres);
+		if(count_pres >= 10){
+		    HAL_TIM_Base_Stop_IT(&htim17);
+			currentPhase = SEP;
+			judg = 2;
+			count_pres = 0;
+		}
+	}else{
+		count_pres = 0;
+	}
+	previous_pressure = pressure;
 }
 
 void processGPSData(uint8_t *buffer){
@@ -555,6 +554,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 			}
 		}
 	}else if (htim->Instance == TIM15) {
+		printf("count up \r\n");
 		flight_time += 1;
 		if(currentPhase == BURNING){
 			if(flight_time >= BURNING_TIME){
@@ -570,31 +570,31 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		mission_time += 1;
 //		switch (currentPhase) {
 //				  	  case SAFETY:
-//				  		if(mission_time == 15){
+//				  		if(mission_time >= 10){
 //				  			currentPhase = READY;
 //				  		}
 //						  break;
 //				  	  case READY:
-//				  		if(mission_time == 30){
+//				  		if(mission_time >= 20){
 //							currentPhase = BURNING;
 //						}
 //						  break;
 //					  case BURNING:
-//						  if(mission_time == 45){
+//						  if(mission_time >= 30){
 //							currentPhase = FLIGHT;
 //						}
 //						  break;
 //					  case FLIGHT:
-//						  if(mission_time == 60){
+//						  if(mission_time >= 40){
 //								currentPhase = SEP;
 //							}
 //						  break;
 //					  case SEP:
-//						  if(mission_time == 75){
+//						  if(mission_time >= 50){
 //							currentPhase = LANDED;
 //						}
 //					  case LANDED:
-//						  if(mission_time == 90){
+//						  if(mission_time >= 60){
 //							currentPhase = EMERGENCY;
 //						}
 //						  break;
@@ -725,19 +725,19 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 
 	    }
 		if (huart->Instance == USART4) {
-			// 変数の宣言
+			// 変数の宣�?
 			char temporalData[1];
 			temporalData[0] = (char)rx_Buff_GPS[0];
 			ReceivedData[gps_rx_index] = temporalData[0];
 
-			if (temporalData[0] == '\n') { // 受信データの終端を判定
+			if (temporalData[0] == '\n') { // 受信�?ータの終端を判�?
 //				printf("end of sentence\r\n");
 				ReceivedData[GPS_BUFFER - 1] = '\0';
 				processGPSData(ReceivedData);
 				memset(ReceivedData, 0, GPS_BUFFER);
 //				char charData[GPS_BUFFER];
 //				strncpy(charData, (char *)ReceivedData, GPS_BUFFER);
-//				charData[GPS_BUFFER - 1] = '\0'; // 文字列の終端を設定
+//				charData[GPS_BUFFER - 1] = '\0'; // �?字�?��?�終端を設�?
 //				printf("%s", charData); // printfの形式指定子を使用
 				// HAL_UART_Transmit(&huart1, (uint8_t *)charData, GPS_BUFFER, HAL_MAX_DELAY);
 //				memset(charData, 0, GPS_BUFFER);
@@ -745,7 +745,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 			} else {
 				gps_rx_index++;
 				if (gps_rx_index >= GPS_BUFFER) {
-					gps_rx_index = 0; // バッファオーバーフロー防止のためリセット
+					gps_rx_index = 0; // バッファオーバ�?�フロー防止のためリセ�?�?
 				}
 			}
 
@@ -771,11 +771,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 //		ReceivedData[gps_rx_index] = rx_Buff_GPS[0];
 //		temporalData[0] = (char)rx_Buff_GPS[0];
 //
-//        if (temporalData[0] == '\n') { // 受信データの終端を判定
+//        if (temporalData[0] == '\n') { // 受信�?ータの終端を判�?
 //        	printf("end of sentence\r\n");
 //        	char charData[GPS_BUFFER];
 //        	strncpy(charData, (char *)ReceivedData, GPS_BUFFER);
-//        	charData[GPS_BUFFER - 1] = '\0'; // 文字列の終端を設定
+//        	charData[GPS_BUFFER - 1] = '\0'; // �?字�?��?�終端を設�?
 //        	printf(charData);
 ////        	HAL_UART_Transmit(&huart1, (uint8_t *)charData, GPS_BUFFER,HAL_MAX_DELAY);
 //            memset(charData,0,GPS_BUFFER);
@@ -783,7 +783,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart){
 //        } else {
 //        	gps_rx_index ++;
 //			if (gps_rx_index >= GPS_BUFFER) {
-//				gps_rx_index = 0; // バッファオーバーフロー防止のためリセット
+//				gps_rx_index = 0; // バッファオーバ�?�フロー防止のためリセ�?�?
 //			}
 //        }
 ////        HAL_UART_Receive_IT(huart, &rx_Buff_GPS[gps_rx_index], 1); // 次のバイトを受信
